@@ -13,7 +13,6 @@ async function main() {
 
   channel.addEventListener("message", (event) => {
     if (event.data.type === "onFilesChange") {
-      console.log("@onFilesChange");
       runner.contentWindow?.location.reload();
     }
   });
@@ -67,7 +66,7 @@ if ("serviceWorker" in navigator) {
       });
     })
     .then(() => {
-      console.log("Service worker prepared. Boot the app");
+      console.log("Service worker is ready. Bootstrap the app.");
       main();
     });
 } else {

@@ -1,9 +1,8 @@
+// simple indexDB key-value store
 importScripts(
   "https://cdn.jsdelivr.net/npm/idb-keyval@3/dist/idb-keyval-iife.js"
 );
-
 const { Store, get, set } = idbKeyval;
-console.log("{ Store, get, set }", { Store, get, set });
 
 const channel = new BroadcastChannel("vite-browser-channel");
 const store = new Store("vite-browser-idb-name", "files-v1");
@@ -38,7 +37,6 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("activate", (event) => {
   clients.claim();
-  console.log("V1 now ready to handle fetches!");
 });
 
 self.addEventListener("fetch", async (event) => {
@@ -90,7 +88,6 @@ channel.addEventListener("message", async (event) => {
       const newFiles = event.data.files;
       // TODO: add simple HMR
       await setFiles(newFiles);
-      console.log("requestFileChange@@", newFiles);
       channel.postMessage({
         type: "onFilesChange",
         newFiles,
