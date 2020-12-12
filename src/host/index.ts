@@ -1,65 +1,76 @@
-export {};
+async function main() {
+  const file1 = document.getElementById("file1") as HTMLTextAreaElement;
+  const file2 = document.getElementById("file2") as HTMLTextAreaElement;
+  const file3 = document.getElementById("file3") as HTMLTextAreaElement;
+  const runner = document.getElementById("runner") as HTMLIFrameElement;
+
+  const channel = new BroadcastChannel("vite-browser-channel");
+
+  fetch("/__vite_browser_files")
+    .then((res) => res.json())
+    .then((d) => d.files)
+    .then(setFiles);
+
+  channel.addEventListener("message", (event) => {
+    if (event.data.type === "onFilesChange") {
+      console.log("@onFilesChange");
+      runner.contentWindow?.location.reload();
+    }
+  });
+  runner.src = "/runner";
+
+  file1.addEventListener("input", handleChange);
+  file2.addEventListener("input", handleChange);
+  file3.addEventListener("input", handleChange);
+
+  function handleChange(e: Event) {
+    requestSetFiles(getFiles());
+  }
+
+  function getFiles() {
+    return {
+      "/file1.js": file1.value,
+      "/file2.js": file2.value,
+      "/file3.js": file3.value,
+    };
+  }
+
+  function requestSetFiles(files: any) {
+    channel.postMessage({
+      type: "requestSetFiles",
+      files,
+    });
+  }
+
+  function setFiles(files: any) {
+    file1.value = files["/file1.js"];
+    file2.value = files["/file2.js"];
+    file3.value = files["/file3.js"];
+  }
+}
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker
-    .register("/sw.js")
-    .then(function (reg) {
-      if (reg.installing) {
-        console.log("Service worker installing");
-      } else if (reg.waiting) {
-        console.log("Service worker installed");
-      } else if (reg.active) {
-        console.log("Service worker active");
-      }
-      // const sw = reg.installing || reg.waiting || reg.active as ServiceWorker
-      // sw.
+  navigator.serviceWorker.register("/sw.js");
+
+  navigator.serviceWorker.ready
+    .then(() => {
+      if (navigator.serviceWorker.controller) return;
+      return new Promise<void>((res) => {
+        const listener = () => {
+          res();
+          navigator.serviceWorker.removeEventListener(
+            "controllerchange",
+            listener
+          );
+        };
+        navigator.serviceWorker.addEventListener("controllerchange", listener);
+      });
     })
-    .catch(function (error) {
-      // registration failed
-      console.log("Registration failed with " + error);
+    .then(() => {
+      console.log("Service worker prepared. Boot the app");
+      main();
     });
 } else {
-  alert("use a browser that support serviceWorker");
+  alert("Use a browser that support serviceWorker");
 }
-
-const defaultFiles = {
-  file1: `const appEl = document.getElementById("app")!;
-import App from "./App.js";
-appEl.innerHTML = App();`,
-  file2: `import Child from "./Child.js";
-export default () => {
-  return "<h1>App</h1>" + Child();
-};`,
-  file3: `export default () => {
-  return "<p>Child</p>"
-}`,
-};
-
-const file1 = document.getElementById("file1") as HTMLTextAreaElement;
-const file2 = document.getElementById("file2") as HTMLTextAreaElement;
-const file3 = document.getElementById("file3") as HTMLTextAreaElement;
-
-setFiles(defaultFiles);
-
-function getFiles() {
-  return {
-    file1: file1.value,
-    file2: file2.value,
-    file3: file3.value,
-  };
-}
-
-function setFiles(data: any) {
-  file1.value = data.file1;
-  file2.value = data.file2;
-  file3.value = data.file3;
-}
-
-console.log(getFiles());
-
-// const c = new BroadcastChannel("vite-channel").addEventListener(
-//   "message",
-//   (event) => {
-//     console.log("Broadcast received in page:", event.data);
-//   }
-// );
+export {};
