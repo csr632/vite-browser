@@ -24,7 +24,7 @@ async function main() {
   file3.addEventListener("input", handleChange);
 
   function handleChange(e: Event) {
-    requestSetFiles(getFiles());
+    requestFileChange(getFiles());
   }
 
   function getFiles() {
@@ -35,9 +35,9 @@ async function main() {
     };
   }
 
-  function requestSetFiles(files: any) {
+  function requestFileChange(files: any) {
     channel.postMessage({
-      type: "requestSetFiles",
+      type: "requestFileChange",
       files,
     });
   }

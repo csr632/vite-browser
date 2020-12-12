@@ -86,10 +86,11 @@ self.addEventListener("fetch", async (event) => {
 
 channel.addEventListener("message", async (event) => {
   switch (event.data.type) {
-    case "requestSetFiles":
+    case "requestFileChange":
       const newFiles = event.data.files;
+      // TODO: add simple HMR
       await setFiles(newFiles);
-      console.log("requestSetFiles@@", newFiles);
+      console.log("requestFileChange@@", newFiles);
       channel.postMessage({
         type: "onFilesChange",
         newFiles,
