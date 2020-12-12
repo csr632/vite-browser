@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <link rel="stylesheet" href="./src/host/index.css" />
+  </head>
+  <body>
+    <div id="app">
+      <iframe id="runner" src="/runner"></iframe>
+
+      <h2>file1.js</h2>
+      <textarea name="file1" id="file1" cols="120" rows="8"></textarea>
+
+      <h2>Parent.js</h2>
+      <textarea name="file2" id="file2" cols="120" rows="8"></textarea>
+
+      <h2>Child.js</h2>
+      <textarea name="file3" id="file3" cols="120" rows="8"></textarea>
+
+    </div>
+    <script type="module" src="./lib/host/index.js"></script>
+  </body>
+</html>
