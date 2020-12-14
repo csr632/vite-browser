@@ -43,41 +43,48 @@ self.addEventListener("fetch", async (event) => {
   event.respondWith(
     (async () => {
       const url = new URL(event.request.url);
-      const files = await getFiles();
-      console.log("fetch ", url.pathname, event, files);
-      if (url.origin === location.origin) {
-        if (url.pathname === "/runner") {
-          return new Response(
-            `<!DOCTYPE html>
+      console.log("fetch ", url.pathname, event);
+      if (url.pathname === "/runner") {
+        return new Response(
+          `<!DOCTYPE html>
 <div id="app">
 <script type="module">
-  import "./file1.js";
+import "./file1.js";
 </script>`,
-            {
-              headers: {
-                "Content-Type": "text/html",
-              },
-            }
-          );
-        }
-        if (url.pathname === "/__vite_browser_files") {
-          return new Response(JSON.stringify({ files }), {
+          {
             headers: {
-              "Content-Type": "application/json",
+              "Content-Type": "text/html",
             },
-          });
-        }
-        if (files[url.pathname]) {
-          const file = files[url.pathname];
-          return new Response(file, {
-            headers: {
-              "Content-Type": "application/javascript",
-            },
-          });
-        }
+          }
+        );
       }
-      // fallback to network
-      return fetch(event.request);
+      const files = await getFiles();
+      if (url.pathname === "/__vite_browser_files") {
+        return new Response(JSON.stringify({ files }), {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+      }
+      const client = await self.clients.get(event.clientId);
+      if (!client || client.url !== `${location.origin}/runner`) {
+        // not from sandbox iframe, fallback to network
+        return fetch(event.request);
+      }
+      console.log("client", client, `${location.origin}/runner`);
+      if (files[url.pathname]) {
+        const file = files[url.pathname];
+        return new Response(file, {
+          headers: {
+            "Content-Type": "application/javascript",
+          },
+        });
+      } else {
+        return new Response("", {
+          status: 404,
+          statusText: `[vite-browser]: file not exist in virtual fs`,
+        });
+      }
     })()
   );
 });
