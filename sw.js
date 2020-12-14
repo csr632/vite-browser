@@ -75,9 +75,9 @@ self.addEventListener("fetch", async (event) => {
             },
           });
         }
-        // fallback to network
-        return fetch(event.request);
       }
+      // fallback to network
+      return fetch(event.request);
     })()
   );
 });
