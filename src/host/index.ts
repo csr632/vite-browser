@@ -18,15 +18,17 @@ async function main() {
   });
   runner.src = "/runner";
 
-  file1.addEventListener("input", handleChange);
-  file2.addEventListener("input", handleChange);
-  file3.addEventListener("input", handleChange);
+  file1.addEventListener("input", getChangeHandler("/file1.js"));
+  file2.addEventListener("input", getChangeHandler("/file2.js"));
+  file3.addEventListener("input", getChangeHandler("/file3.js"));
 
-  function handleChange(e: Event) {
-    requestFileChange(getFiles());
+  function getChangeHandler(fileName: string) {
+    return function handleChange(e: Event) {
+      requestFileChange(fileName, getFiles()[fileName]);
+    };
   }
 
-  function getFiles() {
+  function getFiles(): any {
     return {
       "/file1.js": file1.value,
       "/file2.js": file2.value,
@@ -34,10 +36,11 @@ async function main() {
     };
   }
 
-  function requestFileChange(files: any) {
+  function requestFileChange(fileName: string, content: string) {
     channel.postMessage({
       type: "requestFileChange",
-      files,
+      fileName,
+      content,
     });
   }
 

@@ -2,15 +2,31 @@
 importScripts(
   "https://cdn.jsdelivr.net/npm/idb-keyval@3/dist/idb-keyval-iife.js"
 );
-const { Store, get, set } = idbKeyval;
+const { Store, get, set, keys } = idbKeyval;
 
 const channel = new BroadcastChannel("vite-browser-channel");
-const store = new Store("vite-browser-idb-name", "files-v1");
-function getFiles() {
-  return get("files", store);
+const store = new Store("vite-browser-idb-name", "files-v2");
+
+async function getFile(fileName) {
+  return get(fileName, store);
 }
-function setFiles(files) {
-  return set("files", files, store);
+async function getFiles() {
+  const fileNames = await keys();
+  const filesArr = Promise.all(fileNames.map(getFile));
+  return fileNames.reduce((acc, cur, idx) => {
+    acc[cur] = filesArr[idx];
+    return acc;
+  }, {});
+}
+
+async function setFile(fileName, content) {
+  await set(fileName, content, store);
+  return;
+}
+
+async function setFiles(files) {
+  await Promise.all(Object.entries(files).map(([n, c]) => setFile(n, c)));
+  return;
 }
 
 (async () => {
@@ -71,10 +87,11 @@ import "./file1.js";
         // not from sandbox iframe, fallback to network
         return fetch(event.request);
       }
-      console.log("client", client, `${location.origin}/runner`);
-      if (files[url.pathname]) {
-        const file = files[url.pathname];
-        return new Response(file, {
+      const fileName = url.pathname;
+      if (files[fileName]) {
+        let fileContent = files[fileName];
+        fileContent = await rewriteForHMR(fileName, fileContent);
+        return new Response(fileContent, {
           headers: {
             "Content-Type": "application/javascript",
           },
@@ -92,16 +109,161 @@ import "./file1.js";
 channel.addEventListener("message", async (event) => {
   switch (event.data.type) {
     case "requestFileChange":
-      const newFiles = event.data.files;
-      // TODO: add simple HMR
-      await setFiles(newFiles);
-      channel.postMessage({
-        type: "onFilesChange",
-        newFiles,
-      });
+      const { fileName, content } = event.data;
+      await setFile(fileName, content);
+      notifyChange(fileName);
       break;
 
     default:
       break;
   }
 });
+
+// simple HMR
+
+function notifyChange(fileName) {
+  channel.postMessage({
+    type: "hmr:fileChange",
+    fileName,
+  });
+}
+
+async function rewriteForHMR(fileName, content) {
+  const importReg = /import (?:.*?) from \"(.*)\"/g;
+  let match = importReg.exec(content);
+  const importees = [];
+  while (match) {
+    let importee = match[1];
+    importee = resolveRelativePath(fileName, importee);
+    importees.push(fileName);
+    match = importReg.exec(content);
+  }
+  const registerDeps = importees.map(
+    (importee) => `import.meta.hot.registerDep("${importee}");`
+  );
+  const inject = `import { createHotContext } from "/_hmr_client";
+import.meta.hot = createHotContext(${fileName});
+${registerDeps.join("\n")}
+`;
+  return inject + content;
+}
+
+const hmrClientCode = `
+  /**
+   * We need to build a module graph,
+   * so that with this import relationship:
+   *   a
+   *  ↗ ↖
+   * b   c
+   *  ↖ ↗
+   *   d
+   * when d is updated, we only call the cb of a **once**.
+   */
+
+
+  const channel = new BroadcastChannel("vite-browser-channel");
+
+  const moduleGraph = {};
+
+  class HotModule {
+    constructor(name) {
+      this.name = name;
+      this.importers = [];
+      this.accepts = {};
+    }
+  }
+
+  export const createHotContext = (fileName) => {
+    const hotModule = moduleGraph[fileName];
+    if (!hotModule) throw new Error("assertion fail")
+    return {
+      accept(cb) {
+        const arr = hotModule.accepts[fileName] = hotModule.accepts[fileName] || [];
+        arr.push(cb);
+      },
+      acceptDeps(depFileName, cb) {
+        const arr = hotModule.accepts[depFileName] = hotModule.accepts[depFileName] || [];
+        arr.push(cb);
+      },
+      registerDep(depFileName) {
+        if (!moduleGraph[depFileName]) moduleGraph[depFileName] = new HotModule(depFileName);
+        moduleGraph[depFileName].importers.push(fileName);
+      }
+    }
+  }
+
+  function bubbleUpdate(currentFileName, hmrBoundaries) {
+    if () {
+/**
+ * TODO re-import the modules in import chain.
+ * Example 1:
+ *   a
+ *  ↗ ↖
+ * b   c
+ *  ↖ ↗ ↖
+ *   d   e
+ * 
+ * a: acceptDep c
+ * b: acceptDep d
+ * c: acceptDep e
+ * 
+ * When d is updated, the hmrBoundaries will be a and b.
+ * Only d, c will be re-import (in that order).
+ * a, b, e will not be re-import.
+ * 
+ * Example 2:
+ *   a
+ *  ↗ ↖
+ * b   c
+ *  ↖ ↗ ↖
+ *   d   e
+ * 
+ * a: self-accept
+ * 
+ * When e is updated, the hmrBoundaries will be a.
+ * Only e, c, a will be re-import(in that order).
+ * b, d will not be re-import.
+ */
+    }
+  }
+
+  channel.addEventListener("message", (event) => {
+    if (event.data.type === "hmr:fileChange") {
+      const fileName = event.data.fileName;
+      if (onFileChange[fileName]) {
+        onFileChange[fileName].forEach((cb) => {
+          cb();
+        })
+      }
+    }
+  });
+`;
+
+// utils
+
+function resolveRelativePath(base, path) {
+  if (!path) return base;
+  if (path.startsWith("/")) return path;
+  const parts = path.split("/");
+  // ensure path not starts with ./
+  if (parts[0] === ".") return resolveRelativePath(base, path.slice(2));
+  // ensure base ends with /
+  if (!base.endsWith("/")) return resolveRelativePath(getDir(base), path);
+
+  if (parts[0] === "..") {
+    parts.shift();
+    return resolveRelativePath(getDir(base.slice(0, -1)), parts.join("/"));
+  }
+  if (parts.length === 1) {
+    return base + parts[0];
+  }
+  parts.shift();
+  return resolveRelativePath(base + parts[0] + "/", parts.join("/"));
+
+  function getDir(p) {
+    if (p.endsWith("/")) return p;
+    const parts = p.split("/");
+    parts.pop();
+    return parts.join("/") + "/";
+  }
+}
