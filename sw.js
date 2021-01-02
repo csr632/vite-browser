@@ -138,105 +138,19 @@ async function rewriteForHMR(fileName, content) {
     importees.push(fileName);
     match = importReg.exec(content);
   }
-  const registerDeps = importees.map(
-    (importee) => `import.meta.hot.registerDep("${importee}");`
-  );
+  // const registerDeps = importees.map(
+  //   (importee) => `import.meta.hot.registerDep("${importee}");`
+  // );
   const inject = `import { createHotContext } from "/_hmr_client";
-import.meta.hot = createHotContext(${fileName});
-${registerDeps.join("\n")}
-`;
+import.meta.hot = createHotContext(${fileName});`;
   return inject + content;
 }
 
+// TODO, 在服务端收集accept信息
+// 因为hmr时服务端必须要知道要更新的模块链
+
 const hmrClientCode = `
-  /**
-   * We need to build a module graph,
-   * so that with this import relationship:
-   *   a
-   *  ↗ ↖
-   * b   c
-   *  ↖ ↗
-   *   d
-   * when d is updated, we only call the cb of a **once**.
-   */
-
-
-  const channel = new BroadcastChannel("vite-browser-channel");
-
-  const moduleGraph = {};
-
-  class HotModule {
-    constructor(name) {
-      this.name = name;
-      this.importers = [];
-      this.accepts = {};
-    }
-  }
-
-  export const createHotContext = (fileName) => {
-    const hotModule = moduleGraph[fileName];
-    if (!hotModule) throw new Error("assertion fail")
-    return {
-      accept(cb) {
-        const arr = hotModule.accepts[fileName] = hotModule.accepts[fileName] || [];
-        arr.push(cb);
-      },
-      acceptDeps(depFileName, cb) {
-        const arr = hotModule.accepts[depFileName] = hotModule.accepts[depFileName] || [];
-        arr.push(cb);
-      },
-      registerDep(depFileName) {
-        if (!moduleGraph[depFileName]) moduleGraph[depFileName] = new HotModule(depFileName);
-        moduleGraph[depFileName].importers.push(fileName);
-      }
-    }
-  }
-
-  function bubbleUpdate(currentFileName, hmrBoundaries) {
-    if () {
-/**
- * TODO re-import the modules in import chain.
- * Example 1:
- *   a
- *  ↗ ↖
- * b   c
- *  ↖ ↗ ↖
- *   d   e
- * 
- * a: acceptDep c
- * b: acceptDep d
- * c: acceptDep e
- * 
- * When d is updated, the hmrBoundaries will be a and b.
- * Only d, c will be re-import (in that order).
- * a, b, e will not be re-import.
- * 
- * Example 2:
- *   a
- *  ↗ ↖
- * b   c
- *  ↖ ↗ ↖
- *   d   e
- * 
- * a: self-accept
- * 
- * When e is updated, the hmrBoundaries will be a.
- * Only e, c, a will be re-import(in that order).
- * b, d will not be re-import.
- */
-    }
-  }
-
-  channel.addEventListener("message", (event) => {
-    if (event.data.type === "hmr:fileChange") {
-      const fileName = event.data.fileName;
-      if (onFileChange[fileName]) {
-        onFileChange[fileName].forEach((cb) => {
-          cb();
-        })
-      }
-    }
-  });
+  
 `;
 
 // utils
